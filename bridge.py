@@ -349,6 +349,7 @@ class Bridge:
         self.tg = tg
         self.http = http
         self.names: dict[int, str] = {}
+        self.admins: set[int] | None = None
         self.lock = asyncio.Lock()
         self.state = State(cfg.data_dir / "state.json")
         # Живые сообщения ждут, пока догрузится пропущенное, чтобы не нарушать порядок.
@@ -366,11 +367,30 @@ class Bridge:
             user = await self.client.get_user(user_id)
             if user and user.names:
                 n = user.names[0]
-                name = n.name or " ".join(p for p in (n.first_name, n.last_name) if p) or name
+                name = " ".join(p for p in (n.first_name, n.last_name) if p) or n.name or name
         except Exception as e:  # noqa: BLE001
             log.debug("не удалось получить имя %s: %s", user_id, e)
         self.names[user_id] = name
         return name
+
+    async def chat_admins(self) -> set[int]:
+        if self.admins is not None:
+            return self.admins
+        admins: set[int] = set()
+        try:
+            chat = await self.client.get_chat(self.cfg.max_chat_id)  # type: ignore[arg-type]
+            admins = {chat.owner, *chat.admins, *chat.admin_participants}
+        except Exception as e:  # noqa: BLE001
+            log.warning("не удалось получить админов чата: %s", e)
+            return admins  # не кешируем: попробуем ещё раз со следующим сообщением
+        self.admins = admins
+        return admins
+
+    async def sender_header(self, user_id: int | None) -> str:
+        header = f"<b>{html.escape(await self.user_name(user_id))}</b>"
+        if user_id is not None and user_id in await self.chat_admins():
+            header += " <i>админ</i>"
+        return header
 
     async def download(self, url: str, fallback_name: str) -> tuple[str, bytes] | str:
         """Возвращает (имя, байты) или строку с причиной, почему не скачано."""
@@ -427,8 +447,7 @@ class Bridge:
 
     async def render(self, message: Message) -> Rendered:
         out = Rendered()
-        sender = await self.user_name(message.sender)
-        header = f"<b>{html.escape(sender)}</b>"
+        header = await self.sender_header(message.sender)
         if message.time and time.time() * 1000 - ms(message.time) > 5 * 60 * 1000:
             stamp = datetime.fromtimestamp(ms(message.time) / 1000).strftime("%d.%m.%Y %H:%M")
             header += f" <i>· {stamp}</i>"
@@ -578,9 +597,9 @@ class Bridge:
             except Exception as e:
                 log.exception("не удалось переслать %s", message.id)
                 try:
-                    sender = await self.user_name(message.sender)
+                    sender = await self.sender_header(message.sender)
                     await self.tg.send_text(
-                        f"<b>{html.escape(sender)}</b>\n{html.escape(message.text or '')}\n"
+                        f"{sender}\n{html.escape(message.text or '')}\n"
                         f"<i>[ошибка пересылки: {html.escape(str(e))[:200]}]</i>"
                     )
                 except Exception:
@@ -655,9 +674,9 @@ class Bridge:
         if not self.cfg.forward_edits or not self.wanted(message):
             return
         async with self.lock:
-            sender = await self.user_name(message.sender)
+            sender = await self.sender_header(message.sender)
             await self.tg.send_text(
-                f"<b>{html.escape(sender)}</b> <i>✏️ изменил сообщение:</i>\n{html.escape(message.text or '')}"
+                f"{sender} <i>✏️ изменил сообщение:</i>\n{html.escape(message.text or '')}"
             )
 
 
