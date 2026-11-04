@@ -1,0 +1,16 @@
+services:
+  max2tg:
+    build: .
+    image: max2tg-topic:local
+    container_name: max2tg
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - ./data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,5 @@
+data/
+.env
+*.md
+.venv/
+.ruff_cache/

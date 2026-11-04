@@ -1,0 +1,50 @@
+[project]
+name = "max2tg-topic"
+version = "0.1.0"
+description = "MAX -> Telegram: один чат MAX пересылается в одну тему Telegram-группы"
+readme = "README.md"
+requires-python = ">=3.12"
+# Держите в синхроне с requirements.txt (его использует Dockerfile).
+dependencies = [
+    "maxapi-python==2.5.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "BLE",   # flake8-blind-except
+    "C4",    # flake8-comprehensions
+    "SIM",   # flake8-simplify
+    "RUF",   # ruff-specific
+    "ASYNC", # flake8-async
+    "PTH",   # flake8-use-pathlib
+    "LOG",   # flake8-logging
+]
+ignore = [
+    "E501",    # длину строк держит форматтер
+    "RUF001",  # кириллица в строках — это нормально
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = true
