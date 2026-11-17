@@ -9,7 +9,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY bridge.py .
+COPY bridge.py russian_trusted_root_ca.pem ./
 
 RUN useradd --uid 1000 --create-home bridge \
  && mkdir -p /data && chown bridge:bridge /data

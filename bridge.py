@@ -16,6 +16,7 @@ import json
 import logging
 import mimetypes
 import os
+import ssl
 import sys
 import time
 from dataclasses import dataclass, field
@@ -48,6 +49,10 @@ from pymax.types.domain.message import ForwardLink, ReplyLink
 log = logging.getLogger("max2tg")
 
 SESSION_NAME = "session.db"
+
+# Файловый CDN MAX (fd*.oneme.ru) подписан корнем Минцифры, которого нет в стандартных
+# хранилищах. Доверяем ему только при скачивании вложений MAX, не для Telegram.
+MAX_CA_FILE = Path(__file__).with_name("russian_trusted_root_ca.pem")
 TG_TEXT_LIMIT = 4096
 TG_CAPTION_LIMIT = 1024
 TG_ALBUM_LIMIT = 10
@@ -348,6 +353,8 @@ class Bridge:
         self.client = client
         self.tg = tg
         self.http = http
+        self.max_ssl = ssl.create_default_context()
+        self.max_ssl.load_verify_locations(cafile=MAX_CA_FILE)
         self.names: dict[int, str] = {}
         self.admins: set[int] | None = None
         self.lock = asyncio.Lock()
@@ -395,7 +402,7 @@ class Bridge:
     async def download(self, url: str, fallback_name: str) -> tuple[str, bytes] | str:
         """Возвращает (имя, байты) или строку с причиной, почему не скачано."""
         try:
-            async with self.http.get(url) as resp:
+            async with self.http.get(url, ssl=self.max_ssl) as resp:
                 if resp.status != 200:
                     return f"HTTP {resp.status}"
                 size = resp.content_length
