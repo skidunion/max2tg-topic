@@ -1,0 +1,32 @@
+services:
+  max2tg-topic:
+    image: ghcr.io/skidunion/max2tg-topic:latest
+    restart: unless-stopped
+    depends_on:
+      - sing-box
+    environment:
+      TZ: Europe/Moscow
+      MAX_PHONE: "+79990000000"
+      MAX_CHAT_ID: "REPLACE_ME"
+      TG_BOT_TOKEN: "REPLACE_ME"
+      TG_CHAT_ID: "REPLACE_ME"
+      TG_THREAD_ID: ""
+      TG_PROXY_URL: "http://sing-box:2080"
+    volumes:
+      - type: bind
+        source: /mnt/REPLACE_WITH_EXISTING_DATA_PATH
+        target: /data
+        bind:
+          create_host_path: false
+
+  sing-box:
+    image: ghcr.io/sagernet/sing-box
+    restart: unless-stopped
+    command: ["-c", "/etc/sing-box/config.json", "run"]
+    volumes:
+      - type: bind
+        source: /mnt/POOL/apps/sing-box/config.json
+        target: /etc/sing-box/config.json
+        read_only: true
+        bind:
+          create_host_path: false

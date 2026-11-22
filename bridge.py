@@ -93,6 +93,7 @@ class Config:
     catch_up: bool = True
     tg_min_interval: float = 3.0
     log_level: str = "INFO"
+    tg_proxy_url: str | None = None
 
     @classmethod
     def load(cls, mode: str) -> Config:
@@ -106,6 +107,7 @@ class Config:
             tg_token=env("TG_BOT_TOKEN", required=need_tg),
             tg_chat_id=env("TG_CHAT_ID", required=need_tg),
             tg_thread_id=int(thread) if thread else None,
+            tg_proxy_url=env("TG_PROXY_URL"),
             max_password=env("MAX_2FA_PASSWORD"),
             forward_own=env_bool("FORWARD_OWN", True),
             forward_edits=env_bool("FORWARD_EDITS", False),
@@ -185,8 +187,11 @@ class Telegram:
         chat_id: str,
         thread_id: int | None,
         min_interval: float = 3.0,
+        *,
+        proxy_url: str | None = None,
     ):
         self.session = session
+        self.proxy_url = proxy_url
         # В одну группу Telegram пускает ~20 сообщений в минуту; держим темп сами.
         self.min_interval = min_interval
         self._next_send = 0.0
@@ -214,9 +219,9 @@ class Telegram:
                     body.add_field(key, value if isinstance(value, str) else json.dumps(value))
                 for key, (filename, content) in files.items():
                     body.add_field(key, content, filename=filename)
-                request = self.session.post(self.base + method, data=body)
+                request = self.session.post(self.base + method, data=body, proxy=self.proxy_url)
             else:
-                request = self.session.post(self.base + method, json=params)
+                request = self.session.post(self.base + method, json=params, proxy=self.proxy_url)
 
             try:
                 async with request as resp:
@@ -738,6 +743,7 @@ async def cmd_run(cfg: Config) -> None:
             cfg.tg_chat_id,
             cfg.tg_thread_id,
             cfg.tg_min_interval,  # type: ignore[arg-type]
+            proxy_url=cfg.tg_proxy_url,
         )
         bridge = Bridge(cfg, client, tg, http)
 
