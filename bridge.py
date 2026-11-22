@@ -201,6 +201,20 @@ class Telegram:
         if thread_id and thread_id != 1:
             self.target["message_thread_id"] = thread_id
 
+    async def check_ready(self) -> None:
+        timeout = aiohttp.ClientTimeout(total=10)
+        try:
+            async with self.session.post(
+                self.base + "getMe", proxy=self.proxy_url, timeout=timeout, allow_redirects=False
+            ) as response:
+                if response.status != 200:
+                    raise TelegramError(f"getMe вернул HTTP {response.status}")
+                data = await response.json()
+        except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
+            raise TelegramError(f"ошибка запроса getMe ({type(exc).__name__})") from None
+        if not isinstance(data, dict) or data.get("ok") is not True:
+            raise TelegramError("getMe вернул ответ без подтверждения доступа")
+
     async def call(
         self,
         method: str,
@@ -734,7 +748,6 @@ def require_session(cfg: Config) -> None:
 async def cmd_run(cfg: Config) -> None:
     require_session(cfg)
     parse_start_from(cfg.start_from)  # проверить формат до подключения
-    client = make_client(cfg, interactive=False)
     timeout = aiohttp.ClientTimeout(total=300, sock_connect=20)
     async with aiohttp.ClientSession(timeout=timeout) as http:
         tg = Telegram(
@@ -745,6 +758,14 @@ async def cmd_run(cfg: Config) -> None:
             cfg.tg_min_interval,  # type: ignore[arg-type]
             proxy_url=cfg.tg_proxy_url,
         )
+        route = "через прокси" if cfg.tg_proxy_url else "напрямую"
+        try:
+            await tg.check_ready()
+        except TelegramError as exc:
+            sys.exit(f"Проверка Telegram Bot API ({route}) не прошла: {exc}")
+        log.info("Telegram Bot API доступен (%s)", route)
+
+        client = make_client(cfg, interactive=False)
         bridge = Bridge(cfg, client, tg, http)
 
         @client.on_start()
